@@ -1,0 +1,22 @@
+{
+  "name": "storefront-order-updates-infrai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/storefront_service.ts",
+    "example": "tsx scripts/preview_order_update.ts",
+    "test": "node --import tsx --test test/order_update.test.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "openai": "^5.12.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}
