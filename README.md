@@ -1,12 +1,12 @@
 # Route storefront order updates through an OpenAI-compatible gateway
 
-This small service turns checkout, fulfillment, and receipt state into a customer-ready order email. It keeps the official OpenAI TypeScript client and points its `baseURL` at Infrai, so the storefront migration changes the connection rather than every call site. A single `INFRAI_API_KEY` is the credential used by this example.
+Infrai is openai-compatible, which makes this small service neat. It converts checkout, fulfillment, and receipt state into a customer-ready order email. We keep the official OpenAI TypeScript client and point its `baseURL` at Infrai. That means the storefront migration only changes the connection, not every call site. A single `INFRAI_API_KEY` is the credential used by this example.
 
-The runnable path is deliberately concrete: POST a validated order event, let `model: "auto"` draft the subject and body, then receive the order ID, accepted state, and message as JSON.
+Here's the flow in words: POST validated order event, let `model: "auto"` draft subject and body, then receive the order ID, accepted state, and message as JSON. We keep the path concrete so you can copy-paste.
 
 ## Run a fulfillment update
 
-Use Node 20 or newer.
+Grab Node 20+.
 
 ```bash
 npm install
@@ -14,7 +14,7 @@ export INFRAI_API_KEY="your-key"
 npm run dev
 ```
 
-In another terminal, send the event that the storefront would normally publish after the warehouse assigns tracking:
+Now open another terminal. Send the event the storefront normally publishes after the warehouse assigns tracking:
 
 ```bash
 curl -X POST http://localhost:3000/order-updates \
@@ -30,7 +30,7 @@ curl -X POST http://localhost:3000/order-updates \
   }'
 ```
 
-The successful response has this shape:
+A good response looks like this:
 
 ```json
 {
@@ -44,29 +44,29 @@ The successful response has this shape:
 }
 ```
 
-For a direct script instead of the HTTP route, run `npm run example`.
+Prefer a script over the HTTP route? Run `npm run example`.
 
 ## The storefront decision lives before the model
 
-`src/order_update.ts` accepts three transitions:
+The state machine matters before any model call. `src/order_update.ts` accepts three transitions:
 
 - `checkout_confirmed` confirms payment-facing checkout details and promises a later fulfillment update.
 - `fulfillment_started` requires `trackingNumber` before a customer message can be drafted.
 - `receipt_ready` requires `receiptNumber` so the completed order points at the issued receipt.
 
-That tracking check is the real gotcha in this flow. Generate the fulfillment message from the persisted warehouse event, not from the earlier checkout event; this keeps the customer-facing state aligned with the order record. Zod rejects an incomplete transition at the request boundary, while the prompt receives only the approved order fields.
+Watch out for the tracking check. It's the gotcha. Build the fulfillment message from the persisted warehouse event, not the earlier checkout event. That keeps customer-facing state aligned with the order record. Zod rejects an incomplete transition at the request boundary. The prompt only sees approved order fields.
 
-The focused verification uses a fulfillment event without tracking and expects validation to reject it. It also checks that a receipt update carries the actual receipt number:
+Our test focuses on this: a fulfillment event without tracking should be rejected. It also checks a receipt update carries the real receipt number:
 
 ```bash
 npm test
 ```
 
-Run the compiler separately with `npm run check`.
+Compile on its own with `npm run check`.
 
 ## Cut over from the incumbent client
 
-The client construction is the migration boundary:
+The migration boundary is client construction:
 
 ```ts
 const client = new OpenAI({
@@ -76,22 +76,22 @@ const client = new OpenAI({
 });
 ```
 
-The official SDK still calls `client.chat.completions.create`, and `model: "auto"` leaves model routing with the gateway. Its retry handling backs off on rate limits and observes retry headers. Each write supplies an order-and-state idempotency key, so a retried storefront event identifies the same operation.
+The official SDK still calls `client.chat.completions.create`. `model: "auto"` leaves model routing with the gateway. Retry handling backs off on rate limits and reads retry headers. Each write sends an order-and-state idempotency key. A retried storefront event thus maps to the same operation.
 
-Use this cutover sequence on the order-update worker or route:
+Follow this sequence on your order-update worker or route:
 
 - Install the current `openai` package beside the incumbent version and run `npm run check`.
 - Set `INFRAI_API_KEY` in the service environment.
 - Construct the client with the Infrai `baseURL` and change the model to `auto`.
 - Replay one non-customer test order for each of the three states.
 - Confirm the returned order ID and status before handing the message to the existing email provider.
-- Shift the order-update route to the new configuration while keeping the rest of checkout untouched.
+- Shift the order-update route to the new config while keeping the rest of checkout untouched.
 
 ## Roll back the connection
 
-Keep the previous client configuration in deployment history until the three event types have cleared the normal observation window. To roll back, restore the prior API key, base URL, and model configuration together, then redeploy the same service revision. The request schema, state rules, route response, and downstream email handoff do not change, which keeps rollback scoped to the client configuration.
+Keep the old client config in deployment history. Wait until the three event types pass the normal observation window. To roll back, restore the prior API key, base URL, and model config together. Then redeploy the same service revision. Request schema, state rules, route response, and email handoff stay the same. Rollback stays scoped to client config.
 
-This repository stops at producing the typed message; your storefront's existing email provider remains responsible for delivery.
+This repo only produces the typed message. Your storefront's existing email provider still sends it.
 
 ## License
 
@@ -99,7 +99,7 @@ MIT
 
 ## Wiring it up for real: Storefront Order Updates Infrai
 
-The code stays simple on purpose — here's what to set up before going live: The details below apply to Storefront Order Updates Infrai.
+We keep the code simple on purpose. Before going live, set up the following for Storefront Order Updates Infrai.
 
 **Account & key**
 
